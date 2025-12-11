@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vrm-api-cli"
+version = "0.1.0"
+description = "CLI tool to fetch State of Charge (SOC) from Victron VRM API"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "the78mole"}
+]
+dependencies = [
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+vrm-cli = "vrm_api_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/the78mole/vrm-api-cli-test"
+Repository = "https://github.com/the78mole/vrm-api-cli-test"
