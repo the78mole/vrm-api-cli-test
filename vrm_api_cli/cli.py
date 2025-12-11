@@ -16,20 +16,41 @@ VRM_API_BASE = "https://vrmapi.victronenergy.com/v2"
 
 def load_token():
     """Load VRM token from .env file"""
-    load_dotenv()
+    # Try to load from current directory first, then from home directory
+    load_dotenv()  # Current directory
+    load_dotenv(os.path.expanduser('~/.env'))  # Home directory
+    
     token = os.getenv('VRM_TOKEN')
     
     if not token:
         print("Error: VRM_TOKEN not found in .env file")
-        print("Please copy env.tmpl to .env and add your VRM token")
+        print("Please create .env file in your home directory (~/.env) or current directory")
+        print("with: VRM_TOKEN=your_token_here")
         sys.exit(1)
     
     return token
 
 
-def get_installations(token):
+def get_user_id(token):
+    """Get the user ID from VRM API"""
+    url = f"{VRM_API_BASE}/users/me"
+    headers = {
+        "X-Authorization": f"Token {token}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data.get('user', {}).get('id')
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching user info: {e}")
+        sys.exit(1)
+
+
+def get_installations(token, user_id):
     """Fetch all installations from VRM API"""
-    url = f"{VRM_API_BASE}/users/installations"
+    url = f"{VRM_API_BASE}/users/{user_id}/installations"
     headers = {
         "X-Authorization": f"Token {token}"
     }
@@ -56,14 +77,18 @@ def get_installation_soc(token, installation_id):
         response.raise_for_status()
         data = response.json()
         
-        # Try to find SOC in the stats
+        # SOC is in records.bs array - last element contains current SOC
         records = data.get('records', {})
+        bs_data = records.get('bs', [])
         
-        # SOC is typically in the 'totals' section
-        totals = records.get('totals', {})
-        soc = totals.get('battery_soc')
+        if bs_data and len(bs_data) > 0:
+            # Last entry in array: [timestamp, avg, min, max]
+            last_entry = bs_data[-1]
+            if len(last_entry) >= 2:
+                # Return the average SOC value (index 1)
+                return round(last_entry[1], 1)
         
-        return soc
+        return None
     except requests.exceptions.RequestException as e:
         print(f"Error fetching SOC for installation {installation_id}: {e}")
         return None
@@ -79,9 +104,12 @@ def main():
     # Load token
     token = load_token()
     
+    # Get user ID
+    user_id = get_user_id(token)
+    
     # Get all installations
     print("Fetching installations...")
-    installations = get_installations(token)
+    installations = get_installations(token, user_id)
     
     if not installations:
         print("No installations found")
@@ -103,7 +131,7 @@ def main():
         if soc is not None:
             print(f"  SOC: {soc}%")
         else:
-            print(f"  SOC: Not available")
+            print("  SOC: Not available")
         
         print()
     
